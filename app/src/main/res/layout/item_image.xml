@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="2dp">
+
+    <ImageView
+        android:id="@+id/ivImage"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:scaleType="centerCrop"
+        android:background="#EEEEEE" />
+
+    <!-- Selection overlay -->
+    <View
+        android:id="@+id/overlay"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="#80000000"
+        android:visibility="gone" />
+
+    <!-- Checkbox -->
+    <CheckBox
+        android:id="@+id/cbSelect"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp" />
+
+    <!-- Date label -->
+    <TextView
+        android:id="@+id/tvDate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:padding="4dp"
+        android:background="#80000000"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp" />
+
+</FrameLayout>
