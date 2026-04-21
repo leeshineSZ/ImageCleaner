@@ -13,7 +13,7 @@ import java.util.Date
 import java.util.Locale
 
 class ImageAdapter(
-    private val images: MutableList<ImageData>,
+    val images: MutableList<ImageData>,
     private val onSelectionChanged: () -> Unit
 ) : RecyclerView.Adapter<ImageAdapter.ViewHolder>() {
 
