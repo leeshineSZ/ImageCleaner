@@ -26,11 +26,17 @@ jobs:
           gradle wrapper --gradle-version 8.7
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/build.log
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/build.log
 
       - name: Show compilation errors
         if: failure()
-        run: grep -E "^e:" /tmp/build.log || echo "No 'e:' lines found, showing last 50 lines:" && tail -50 /tmp/build.log
+        run: |
+          echo "=== Kotlin errors ==="
+          grep -E "^e:" /tmp/build.log || true
+          echo "=== Last 80 lines ==="
+          tail -80 /tmp/build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
