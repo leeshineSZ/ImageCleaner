@@ -2,6 +2,7 @@ package com.example.imagecleaner
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.RecoverableSecurityException
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -29,11 +31,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: ImageAdapter
     private lateinit var analyzer: ImageAnalyzer
 
+    private var pendingDeleteImages: List<ImageData> = emptyList()
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) startScanning()
         else Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
+    }
+
+    private val deleteLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val deleted = pendingDeleteImages
+            adapter.removeImages(deleted)
+            Toast.makeText(this, "Deleted ${deleted.size} images", Toast.LENGTH_SHORT).show()
+            updateStatus()
+            tvStatus.text = "${adapter.itemCount} non-people images remaining"
+        } else {
+            Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show()
+        }
+        pendingDeleteImages = emptyList()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -152,23 +171,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deleteSelected(images: List<ImageData>) {
-        lifecycleScope.launch {
-            var deleted = 0
-            for (image in images) {
-                val success = withContext(Dispatchers.IO) {
-                    try {
-                        contentResolver.delete(image.uri, null, null) > 0
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-                if (success) deleted++
-            }
+        pendingDeleteImages = images
 
-            adapter.removeImages(images)
-            Toast.makeText(this@MainActivity, "Deleted $deleted images", Toast.LENGTH_SHORT).show()
-            updateStatus()
-            tvStatus.text = "${adapter.itemCount} non-people images remaining"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+: use system delete confirmation dialog
+            try {
+                val uris = images.map { it.uri }
+                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, uris)
+                deleteLauncher.launch(
+                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                )
+            } catch (e: Exception) {
+                Toast.makeText(this, "Delete failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            // Android 10 and below: direct delete
+            lifecycleScope.launch {
+                var deleted = 0
+                for (image in images) {
+                    val success = withContext(Dispatchers.IO) {
+                        tryDeleteImage(image)
+                    }
+                    if (success) deleted++
+                }
+                adapter.removeImages(images)
+                Toast.makeText(this@MainActivity, "Deleted $deleted images", Toast.LENGTH_SHORT).show()
+                updateStatus()
+                tvStatus.text = "${adapter.itemCount} non-people images remaining"
+            }
+        }
+    }
+
+    private fun tryDeleteImage(image: ImageData): Boolean {
+        return try {
+            contentResolver.delete(image.uri, null, null) > 0
+        } catch (e: RecoverableSecurityException) {
+            // Android 10: need user consent
+            try {
+                val intentSender = e.userAction.actionIntent.intentSender
+                deleteLauncher.launch(
+                    IntentSenderRequest.Builder(intentSender).build()
+                )
+                false
+            } catch (e2: Exception) {
+                false
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 }
