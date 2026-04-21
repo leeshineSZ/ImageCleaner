@@ -10,7 +10,8 @@ import android.provider.MediaStore
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 class ImageAnalyzer(private val context: Context) {
 
@@ -21,15 +22,19 @@ class ImageAnalyzer(private val context: Context) {
 
     private val detector = FaceDetection.getClient(options)
 
-    /**
-     * Returns true if the image contains at least one face (person).
-     */
     suspend fun containsFace(uri: Uri): Boolean {
         val bitmap = decodeBitmap(uri) ?: return false
         val image = InputImage.fromBitmap(bitmap, 0)
-        val faces = detector.process(image).await()
+        val faces = awaitTask(detector.process(image))
         bitmap.recycle()
         return faces.isNotEmpty()
+    }
+
+    private suspend fun <T> awaitTask(task: com.google.android.gms.tasks.Task<T>): T {
+        return suspendCancellableCoroutine { cont ->
+            task.addOnSuccessListener { result -> cont.resume(result) }
+            task.addOnFailureListener { e -> cont.cancel(e) }
+        }
     }
 
     private fun decodeBitmap(uri: Uri): Bitmap? {
@@ -47,9 +52,6 @@ class ImageAnalyzer(private val context: Context) {
         }
     }
 
-    /**
-     * Query all images from MediaStore, sorted by date added ascending (oldest first).
-     */
     fun queryAllImages(): List<ImageData> {
         val images = mutableListOf<ImageData>()
         val projection = arrayOf(
